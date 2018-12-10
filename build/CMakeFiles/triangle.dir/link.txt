@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/triangle.dir/triangle.cpp.o  -o triangle -rdynamic -lGLU -lGL -lglut -lXmu -lXi 

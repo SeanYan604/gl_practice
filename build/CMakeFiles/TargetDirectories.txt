@@ -1,0 +1,7 @@
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/edit_cache.dir
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/lookarround.dir
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/opengl_first.dir
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/rebuild_cache.dir
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/texture.dir
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/triangle.dir
+/home/seanyan/Documents/practice/OpenGL_c/build/CMakeFiles/texture2.dir

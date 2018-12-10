@@ -1,0 +1,1 @@
+/usr/bin/c++      CMakeFiles/opengl_first.dir/first.cpp.o  -o opengl_first -rdynamic -lGLU -lGL -lglut -lXmu -lXi 
