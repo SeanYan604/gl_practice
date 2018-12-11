@@ -5,10 +5,12 @@
 #include <fstream>
 #include <sstream>
 #include <math.h>
+#include <assert.h>
+#include <vector>
 
-#include<opencv2/opencv.hpp>
-#include<opencv2/core/core.hpp>
-#include<opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 using namespace std;
 using namespace cv;
@@ -29,12 +31,73 @@ double nz = 0.0;
 double eyeposi[] = {0.0,0.0,depth};
 double upposi[] = {0.0,1.0,0.0};
 const float piover180 = 0.01745329f;
-int ite = 1, width = 400, height = 400;
+int ite = 1;
 bool captureMode = false;
 
-typedef GLbyte* bytePt;
-int arrLen = width * height * 3;
-GLbyte* colorArr = new GLbyte[arrLen];
+typedef vector<double> Vect;
+
+Vect crossProduct(const Vect& x, const Vect& y)
+{
+    
+    return Vect{x[1]*y[2]-x[2]*y[1], 
+                x[2]*y[0]-x[0]*y[2],
+                x[0]*y[1]-x[1]*y[0]};
+            // uniform initialization, C++11新特性
+}
+double norm(const Vect& x)
+{
+    double val = 0.;
+    for(auto elem: x)
+        val += elem*elem;
+    return sqrt(val);
+                    // #include <cmath>
+}
+
+Vect normVec(const Vect& x){
+	double normval = norm(x);
+	return Vect{x[0]/normval,x[1]/normval,x[2]/normval};
+}
+
+Vect calBaseVec(const double *x, const Vect& yv){
+	vector<double> xv;
+	for (int i=0;i < sizeof(x);i++){
+		xv.push_back(x[i]);
+	}
+	// vector<double> yv;
+	// for (int i=0;i < sizeof(y);i++){
+	// 	yv.push_back(y[i]);
+	// }
+	Vect xyv = crossProduct(xv, yv);
+	Vect xyvNorm = normVec(xyv);
+	return xyvNorm;
+}
+
+void calNewUpposi(void){
+
+	xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
+    ypos = (double)sin(beta*piover180) * depth;
+	zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
+
+    nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
+    ny = (double)sin((90-beta)*piover180) * 0.1;
+	nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
+
+	eyeposi[0] = xpos;
+    eyeposi[1] = ypos;
+	eyeposi[2] = zpos;
+
+	Vect nxyz;
+	nxyz.push_back(nx);
+	nxyz.push_back(ny);
+	nxyz.push_back(nz);
+	Vect veupnorm = calBaseVec(eyeposi,nxyz);
+	Vect normupposi;
+	normupposi = normVec(nxyz);
+
+	upposi[0] = (double)cos(gama*piover180) * normupposi[0] + (double)sin(gama*piover180) * veupnorm[0];
+	upposi[1] = (double)cos(gama*piover180) * normupposi[1] + (double)sin(gama*piover180) * veupnorm[1];
+	upposi[2] = (double)cos(gama*piover180) * normupposi[2] + (double)sin(gama*piover180) * veupnorm[2];
+}
 
 void init_light(void)
 {
@@ -75,32 +138,23 @@ void reshape(int w, int h)
 	glLoadIdentity();
 }
 
-void saveColorData(bytePt& _pt, string _str) {
-	FILE* pFile = fopen(_str.c_str(), "wt");
-	if (pFile == NULL) { fprintf(stderr, "error \n"); exit(-1); }
-
-	// for (int i = 0; i<width * height * 3; i++) {
-	// 	if (colorArr[i] == -1) { colorArr[i] = 255; }
-	// }
-
-	for (int i = 0; i<width * height * 3; i++) {
-		fprintf(pFile, "%d\n", colorArr[i]);
-	}
-	fclose(pFile);
-	// printf("color data saved! \n");
-}
+typedef GLbyte* bytePt;
+int winWidth = 400;
+int winHeight = 400;
+int arrLen = winWidth * winHeight * 3;
+GLbyte* colorArr = new GLbyte[arrLen];
 
 void saveColorData_img(bytePt& _pt, string _str) {
-	Mat img(height, width, CV_8UC3);
+	Mat img(winHeight, winWidth, CV_8UC3);
     vector<cv::Mat> imgPlanes;
     cv::split(img, imgPlanes);
     
-    for(int i = 0; i < height; i ++) {
+    for(int i = 0; i < winHeight; i ++) {
         uchar* plane0Ptr = imgPlanes[0].ptr<uchar>(i);
         uchar* plane1Ptr = imgPlanes[1].ptr<uchar>(i);
         uchar* plane2Ptr = imgPlanes[2].ptr<uchar>(i);
-        for(int j = 0; j < width; j ++) {
-        int k = 3 * (i * width + j);
+        for(int j = 0; j < winWidth; j ++) {
+        int k = 3 * (i * winWidth + j);
             plane2Ptr[j] = _pt[k];
             plane1Ptr[j] = _pt[k+1];
             plane0Ptr[j] = _pt[k+2];
@@ -118,7 +172,7 @@ void captureImage(void) {
 	glGetIntegerv(GL_VIEWPORT, viewPort);
 	glReadPixels(viewPort[0], viewPort[1], viewPort[2], viewPort[3], GL_RGB, GL_UNSIGNED_BYTE, colorArr);
 	// printf("color data read !\n");
-	string base = "../output/tmpcolor";
+	string base = "../output/teapot";
 	string ext = ".png";
 	stringstream ss;
 	ss << base << ite << ext;
@@ -134,21 +188,8 @@ void keys(unsigned char key, int x, int y)
 
 	if (key == 'a' || key == 'A') {
 		alpha -= 2;
-		cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-		xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-        ypos = (double)sin(beta*piover180) * depth;
-		zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
-
-        nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-        ny = (double)sin((90-beta)*piover180) * 0.1;
-		nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-
-		eyeposi[0] = xpos;
-        eyeposi[1] = ypos;
-		eyeposi[2] = zpos;
-        upposi[0] = nx;
-        upposi[1] = ny;
-        upposi[2] = nz;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;		
+		calNewUpposi();
 		display();
 		if (captureMode) {
 			captureImage();
@@ -156,21 +197,10 @@ void keys(unsigned char key, int x, int y)
 	}
 	if (key == 'd' || key == 'D') {
 		alpha += 2;
-		cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-		xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-        ypos = (double)sin(beta*piover180) * depth;
-		zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
 
-        nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-        ny = (double)sin((90-beta)*piover180) * 0.1;
-		nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
 
-		eyeposi[0] = xpos;
-        eyeposi[1] = ypos;
-		eyeposi[2] = zpos;
-        upposi[0] = nx;
-        upposi[1] = ny;
-        upposi[2] = nz;
 		display();
 		if (captureMode) {
 			captureImage();
@@ -180,21 +210,8 @@ void keys(unsigned char key, int x, int y)
 		beta += 1;
         beta < -90 ? beta = -90 : beta;
         beta > 90 ? beta = 90 : beta;
-		cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-		xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-        ypos = (double)sin(beta*piover180) * depth;
-		zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
-
-        nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-        ny = (double)sin((90-beta)*piover180) * 0.1;
-		nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-
-		eyeposi[0] = xpos;
-        eyeposi[1] = ypos;
-		eyeposi[2] = zpos;
-        upposi[0] = nx;
-        upposi[1] = ny;
-        upposi[2] = nz;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
 		display();
 		if (captureMode) {
 			captureImage();
@@ -204,21 +221,8 @@ void keys(unsigned char key, int x, int y)
 		beta -= 1;
         beta < -90 ? beta = -90 : beta;
         beta > 90 ? beta = 90 : beta;
-		cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-		xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-        ypos = (double)sin(beta*piover180) * depth;
-		zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
-
-        nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-        ny = (double)sin((90-beta)*piover180) * 0.1;
-		nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-
-		eyeposi[0] = xpos;
-        eyeposi[1] = ypos;
-		eyeposi[2] = zpos;
-        upposi[0] = nx;
-        upposi[1] = ny;
-        upposi[2] = nz;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
 		display();
 		if (captureMode) {
 			captureImage();
@@ -228,21 +232,8 @@ void keys(unsigned char key, int x, int y)
 		depth -= 0.1;
         depth < 6.0 ? depth = 6.0 : depth;
         depth > 15.0 ? depth = 15.0 : depth;
-		cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-		xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-        ypos = (double)sin(beta*piover180) * depth;
-		zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
-
-        nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-        ny = (double)sin((90-beta)*piover180) * 0.1;
-		nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-
-		eyeposi[0] = xpos;
-        eyeposi[1] = ypos;
-		eyeposi[2] = zpos;
-        upposi[0] = nx;
-        upposi[1] = ny;
-        upposi[2] = nz;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
 		display();
 		if (captureMode) {
 			captureImage();
@@ -252,21 +243,29 @@ void keys(unsigned char key, int x, int y)
 		depth += 0.1;
         depth < 6.0 ? depth = 6.0 : depth;
         depth > 15.0 ? depth = 15.0 : depth;
-		cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-		xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-        ypos = (double)sin(beta*piover180) * depth;
-		zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
+		display();
+		if (captureMode) {
+			captureImage();
+		}
+	}
 
-        nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-        ny = (double)sin((90-beta)*piover180) * 0.1;
-		nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-
-		eyeposi[0] = xpos;
-        eyeposi[1] = ypos;
-		eyeposi[2] = zpos;
-        upposi[0] = nx;
-        upposi[1] = ny;
-        upposi[2] = nz;
+	if (key == 'r' || key == 'R') {
+		gama -= 2;
+		gama = gama < -360? (gama + 360):gama;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
+		display();
+		if (captureMode) {
+			captureImage();
+		}
+	}
+	if (key == 't' || key == 'T') {
+		gama += 2;
+		gama = gama > 360? (gama - 360):gama;
+		cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+		calNewUpposi();
 		display();
 		if (captureMode) {
 			captureImage();
@@ -278,27 +277,17 @@ void keys(unsigned char key, int x, int y)
 	}
 	if (key == '1') {
 		ite = 1;
-        for(beta = -90; beta <= 90; beta+= 10)
-            for (alpha = 0; alpha < 360; alpha+= 10) {
-
-                cout << "alpha: " << alpha << "   beta: " << beta << "   depth: " << depth << endl;
-                xpos = (double)sin(alpha*piover180) * (double)cos(beta*piover180) * depth;
-                ypos = (double)sin(beta*piover180) * depth;
-                zpos = (double)cos(alpha*piover180) * (double)cos(beta*piover180) * depth;
-
-                nx = (double)sin((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-                ny = (double)sin((90-beta)*piover180) * 0.1;
-                nz = (double)cos((alpha+180)*piover180) * (double)cos((90-beta)*piover180) * 0.1;
-
-                eyeposi[0] = xpos;
-                eyeposi[1] = ypos;
-                eyeposi[2] = zpos;
-                upposi[0] = nx;
-                upposi[1] = ny;
-                upposi[2] = nz;
-                display();
-                captureImage();
-            }
+        for(beta = -90; beta <= 90; beta+=10)
+            for (alpha = 0; alpha < 360; alpha+=10){
+				
+				cout << "alpha: " << alpha << "   beta: " << beta <<"	gama: "<< gama << "   depth: " << depth << endl;
+				// calEyeAndOriginUPposi();
+				for (gama = 0; gama < 360; gama+=10){
+					calNewUpposi();
+					display();
+					captureImage();
+				}
+			}
 	}
 	if (key == 'p' || key == 'P') {
 		captureMode = !captureMode;
@@ -311,10 +300,10 @@ void keys(unsigned char key, int x, int y)
 int main(int argc, char** argv)
 {
 
+	
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB |GLUT_DEPTH);
-
-	glutInitWindowSize(width, height);
+	glutInitWindowSize(400, 400);
 	glutInitWindowPosition(200, 200);
 	glutCreateWindow("gluPerspective ( X, , 4,10 )");
     init_light();

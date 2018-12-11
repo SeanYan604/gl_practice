@@ -21,6 +21,10 @@ sstream
 -
 math.h
 -
+assert.h
+-
+vector
+-
 opencv2/opencv.hpp
 -
 opencv2/core/core.hpp
